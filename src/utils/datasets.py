@@ -9,6 +9,40 @@ from src.common import as_intrinsics_matrix
 from torch.utils.data import Dataset
 
 
+# def readEXR_onlydepth(filename):
+#     """
+#     Read depth data from EXR image file.
+
+#     Args:
+#         filename (str): File path.
+
+#     Returns:
+#         Y (numpy.array): Depth buffer in float32 format.
+#     """
+#     # move the import here since only CoFusion needs these package
+#     # sometimes installation of openexr is hard, you can run all other datasets
+#     # even without openexr
+#     import Imath
+#     import OpenEXR as exr
+
+#     exrfile = exr.InputFile(filename)
+#     header = exrfile.header()
+#     dw = header['dataWindow']
+#     isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+
+#     channelData = dict()
+
+#     for c in header['channels']:
+#         C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+#         C = np.fromstring(C, dtype=np.float32)
+#         C = np.reshape(C, isize)
+
+#         channelData[c] = C
+
+#     Y = None if 'Y' not in header['channels'] else channelData['Y']
+
+#     return Y
+
 def readEXR_onlydepth(filename):
     """
     Read depth data from EXR image file.
@@ -22,27 +56,30 @@ def readEXR_onlydepth(filename):
     # move the import here since only CoFusion needs these package
     # sometimes installation of openexr is hard, you can run all other datasets
     # even without openexr
-    import Imath
-    import OpenEXR as exr
+    # import Imath
+    # import OpenEXR as exr
 
-    exrfile = exr.InputFile(filename)
-    header = exrfile.header()
-    dw = header['dataWindow']
-    isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+    # exrfile = exr.InputFile(filename)
+    # header = exrfile.header()
+    # dw = header['dataWindow']
+    # isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
 
-    channelData = dict()
+    # channelData = dict()
 
-    for c in header['channels']:
-        C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
-        C = np.fromstring(C, dtype=np.float32)
-        C = np.reshape(C, isize)
+    # for c in header['channels']:
+    #     C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+    #     C = np.fromstring(C, dtype=np.float32)
+    #     C = np.reshape(C, isize)
 
-        channelData[c] = C
+    #     channelData[c] = C
 
-    Y = None if 'Y' not in header['channels'] else channelData['Y']
+    # Y = None if 'Y' not in header['channels'] else channelData['Y']
 
-    return Y
+    # b = 
+    # cv2.imread(output_name, cv2.IMREAD_UNCHANGED)
 
+
+    return cv2.imread(filename, cv2.IMREAD_UNCHANGED)
 
 def get_dataset(cfg, args, scale, device='cuda:0'):
     return dataset_dict[cfg['dataset']](cfg, args, scale, device=device)
@@ -75,8 +112,11 @@ class BaseDataset(Dataset):
         return self.n_img
 
     def __getitem__(self, index):
+        # print(self.color_paths)
+        # print(self.depth_paths)
         color_path = self.color_paths[index]
         depth_path = self.depth_paths[index]
+
         color_data = cv2.imread(color_path)
         if '.png' in depth_path:
             depth_data = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
@@ -187,6 +227,8 @@ class ScanNet(BaseDataset):
             self.input_folder, 'color', '*.jpg')), key=lambda x: int(os.path.basename(x)[:-4]))
         self.depth_paths = sorted(glob.glob(os.path.join(
             self.input_folder, 'depth', '*.png')), key=lambda x: int(os.path.basename(x)[:-4]))
+        self.depth_paths += sorted(glob.glob(os.path.join(
+            self.input_folder, 'depth', '*.exr')), key=lambda x: int(os.path.basename(x)[:-4]))
         self.load_poses(os.path.join(self.input_folder, 'pose'))
         self.n_img = len(self.color_paths)
 

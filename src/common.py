@@ -88,6 +88,22 @@ def get_rays_from_uv(i, j, c2w, H, W, fx, fy, cx, cy, device):
     rays_o = c2w[:3, -1].expand(rays_d.shape)
     return rays_o, rays_d
 
+def select_uv2(i, j, n, depth, color, device='cuda:0'):
+    """
+    Select n uv from dense uv.
+    """
+    i = i.reshape(-1)
+    j = j.reshape(-1)
+    indices = torch.randint(i.shape[0], (n,), device=device)
+    indices = indices.clamp(0, i.shape[0])
+    i = i[indices]  # (n)
+    j = j[indices]  # (n)
+    depth = depth.reshape(-1)
+    color = color.reshape(-1, 3)
+    depth = depth[indices]  # (n)
+    color = color[indices]  # (n,3)
+
+    return i, j, depth, color
 
 def select_uv(i, j, n, depth, color, device='cuda:0'):
     """
@@ -100,10 +116,42 @@ def select_uv(i, j, n, depth, color, device='cuda:0'):
     indices = indices.clamp(0, i.shape[0])
     i = i[indices]  # (n)
     j = j[indices]  # (n)
+    # print('i',i.min(),i.max())
+    # print('j',j.min(),i.max())
+    # print(depth.shape)
+    i = i.clamp(0,depth.shape[1]-1)
+    j = j.clamp(0,depth.shape[0]-1)
+    # print('i',i.min(),i.max())
+    # print('j',j.min(),i.max())
+    # d = []
+    # rgb = []
+    # for ii, i_i in enumerate(i.long()): 
+    #     d.append(depth[j[ii].long(),i_i].cpu())
+    #     rgb.append(color[j[ii].long(),i_i].cpu().numpy().tolist())
+
+    # depth = torch.tensor(d,device=device)
+    # # print(d[:10])
+    # color = torch.tensor(rgb,device=device)
+    # print(depth.shape)
+    # print('i',i.min(),i.max())
+    # print('j',j.min(),i.max())
+    
+    # raise()
+
+    depth = depth[j.long(),i.long()]
+    color = color[j.long(),i.long()]
+
+    # depth = depth[i.long(),j.long()]
+    # color = color[i.long(),j.long()]
+
     depth = depth.reshape(-1)
+    # print(depth[:10])
     color = color.reshape(-1, 3)
-    depth = depth[indices]  # (n)
-    color = color[indices]  # (n,3)
+    # return i, j, d, rgb
+    # print(i,j,depth,color)
+    # print(depth,color)
+
+    # raise()
     return i, j, depth, color
 
 
@@ -112,13 +160,88 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
     Sample n uv coordinates from an image region H0..H1, W0..W1
 
     """
+    # if not H0 == 0:
+    #     print(H0,H1, W0,W1)
+    #     raise()
+    # 20 440 20 600
+
+    # H0 = 20
+    # H1 = 440
+    # W0 = 20
+    # W1 = 600
+    
     depth = depth[H0:H1, W0:W1]
     color = color[H0:H1, W0:W1]
+    # raise()
     i, j = torch.meshgrid(torch.linspace(
         W0, W1-1, W1-W0).to(device), torch.linspace(H0, H1-1, H1-H0).to(device))
     i = i.t()  # transpose
     j = j.t()
+    # print(i.reshape(-1)[:10])
+    # print(j.reshape(-1)[:10])
+    # print("___")
+    
+
+    # keep the i and j inside the mask
+    # i,j = np.where(depth > -1)
+    # j,i = torch.where(depth >= 0)
+
+
+
+    # print(depth.min(),depth.max(),depth.shape,j.shape)
+    
+    j = j[depth>=0]
+    i = i[depth>=0]
+
+    # print(i.reshape(-1)[:10])
+    # print(j.reshape(-1)[:10])
+    # print("___")
+    # raise()
+
+    # i,j = torch.where(depth >= 0)
+
+    # print(i[:10])
+    # print(j[:10])
+    
+    # raise()
+    # # contruct the image 
+    # import cv2
+    # print(torch.min(color),torch.max(color))
+    # # print()
+    # im = color.cpu().numpy()*255
+    # print(im.shape)
+    
+    # # print('i',i.min(),i.max())
+    # # print('j',j.min(),j.max())
+    # img = np.ones(im.shape)*255
+
+    # for i_i, ii in enumerate(i):
+    #     img[ii,j[i_i]] = im[ii,j[i_i]]
+
+    # cv2.imwrite("gt.png",im)
+    # cv2.imwrite("gu.png",img)
+
+    # raise()
+    # print(torch.min(depth),torch.max(depth))
+    # print(i.shape)
+    # raise()
+    # if len(i.reshape(-1)) == 0: 
+    #     print(len(i))
+    #     raise()
+
     i, j, depth, color = select_uv(i, j, n, depth, color, device=device)
+    # if 
+    # print(i.shape,j.shape,depth.shape,color.shape)
+    # print(i.dtype,j.dtype,depth.dtype,color.dtype)
+    # print("depth",depth.min(),depth.max(),depth.mean())
+    # # raise()
+    # print("i",i.min(),i.max(),i.mean())
+    # print("j",j.min(),j.max(),j.mean())
+    # print("depth",depth.min(),depth.max(),depth.mean())
+    # print("color",color.min(),color.max(),color.mean())
+
+
+    # raise()
     return i, j, depth, color
 
 
@@ -131,6 +254,7 @@ def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2w, depth, color, devi
     i, j, sample_depth, sample_color = get_sample_uv(
         H0, H1, W0, W1, n, depth, color, device=device)
     rays_o, rays_d = get_rays_from_uv(i, j, c2w, H, W, fx, fy, cx, cy, device)
+    # print(rays_o.shape)
     return rays_o, rays_d, sample_depth, sample_color
 
 

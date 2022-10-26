@@ -506,9 +506,11 @@ class Mesher(object):
                         if comp.area > self.remove_small_geometry_threshold * self.scale * self.scale:
                             new_components.append(comp)
                     mesh = trimesh.util.concatenate(new_components)
+                # print(mesh)
+                # print(len(mesh))
+
                 vertices = mesh.vertices
                 faces = mesh.faces
-
             if color:
                 if self.color_mesh_extraction_method == 'direct_point_query':
                     # color is extracted by passing the coordinates of mesh vertices through the network
