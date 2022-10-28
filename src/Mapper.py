@@ -453,7 +453,7 @@ class Mapper(object):
                         c2w = get_camera_from_tensor(camera_tensor)
                     else:
                         c2w = cur_c2w
-                # print('first')
+
                 batch_rays_o, batch_rays_d, batch_gt_depth, batch_gt_color = get_samples(
                     0, H, 0, W, pixs_per_image, H, W, fx, fy, cx, cy, c2w, gt_depth, gt_color, self.device)
                 batch_rays_o_list.append(batch_rays_o.float())
@@ -475,7 +475,6 @@ class Mapper(object):
                         device)-det_rays_o)/det_rays_d
                     t, _ = torch.min(torch.max(t, dim=2)[0], dim=1)
                     inside_mask = t >= batch_gt_depth
-                    # inside_mask = torch.logical_and(t >= batch_gt_depth, batch_gt_depth > 0)
                 batch_rays_d = batch_rays_d[inside_mask]
                 batch_rays_o = batch_rays_o[inside_mask]
                 batch_gt_depth = batch_gt_depth[inside_mask]
@@ -541,6 +540,7 @@ class Mapper(object):
             return None
 
     def run(self):
+        # raise()
         cfg = self.cfg
         idx, gt_color, gt_depth, gt_c2w = self.frame_reader[0]
 
@@ -630,7 +630,8 @@ class Mapper(object):
                     self.logger.log(idx, self.keyframe_dict, self.keyframe_list,
                                     selected_keyframes=self.selected_keyframes
                                     if self.save_selected_keyframes_info else None)
-
+                    # store the camera poses 
+                    
                 self.mapping_idx[0] = idx
                 self.mapping_cnt[0] += 1
 

@@ -82,7 +82,8 @@ def readEXR_onlydepth(filename):
     return cv2.imread(filename, cv2.IMREAD_UNCHANGED)
 
 def get_dataset(cfg, args, scale, device='cuda:0'):
-    return dataset_dict[cfg['dataset']](cfg, args, scale, device=device)
+    d = dataset_dict[cfg['dataset']](cfg, args, scale, device=device)
+    return d
 
 
 class BaseDataset(Dataset):
@@ -222,7 +223,7 @@ class ScanNet(BaseDataset):
     def __init__(self, cfg, args, scale, device='cuda:0'
                  ):
         super(ScanNet, self).__init__(cfg, args, scale, device)
-        self.input_folder = os.path.join(self.input_folder, 'frames')
+        # self.input_folder = os.path.join(self.input_folder, 'frames')
         self.color_paths = sorted(glob.glob(os.path.join(
             self.input_folder, 'color', '*.jpg')), key=lambda x: int(os.path.basename(x)[:-4]))
         self.depth_paths = sorted(glob.glob(os.path.join(
@@ -232,6 +233,10 @@ class ScanNet(BaseDataset):
         self.load_poses(os.path.join(self.input_folder, 'pose'))
         self.n_img = len(self.color_paths)
 
+        # print(len(self.color_paths))
+        # print(len(self.depth_paths))
+
+
     def load_poses(self, path):
         self.poses = []
         pose_paths = sorted(glob.glob(os.path.join(path, '*.txt')),
@@ -239,10 +244,18 @@ class ScanNet(BaseDataset):
         for pose_path in pose_paths:
             with open(pose_path, "r") as f:
                 lines = f.readlines()
+            # print(lines)
             ls = []
             for line in lines:
-                l = list(map(float, line.split(' ')))
+                l = line.replace("  "," ").replace("\n","").split(' ')
+                a = []
+                for ll in l: 
+                    if not len(ll) == 0:
+                        a.append(ll)
+                # print(a)
+                l = list(map(float, a))
                 ls.append(l)
+
             c2w = np.array(ls).reshape(4, 4)
             c2w[:3, 1] *= -1
             c2w[:3, 2] *= -1

@@ -508,9 +508,12 @@ class Mesher(object):
                     mesh = trimesh.util.concatenate(new_components)
                 # print(mesh)
                 # print(len(mesh))
-
-                vertices = mesh.vertices
-                faces = mesh.faces
+                try:
+                    vertices = mesh.vertices
+                    faces = mesh.faces
+                except: 
+                    print('no mesh found')
+                    return
             if color:
                 if self.color_mesh_extraction_method == 'direct_point_query':
                     # color is extracted by passing the coordinates of mesh vertices through the network

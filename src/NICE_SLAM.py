@@ -120,23 +120,20 @@ class NICE_SLAM():
             crop_size = self.cfg['cam']['crop_size']
             sx = crop_size[1] / self.W
             sy = crop_size[0] / self.H
-            # print(self.fx)
             self.fx = sx*self.fx
             self.fy = sy*self.fy
             self.cx = sx*self.cx
             self.cy = sy*self.cy
             self.W = crop_size[1]
             self.H = crop_size[0]
-            # print(self.fx)
-            # raise()
+
         # croping will change H, W, cx, cy, so need to change here
         if self.cfg['cam']['crop_edge'] > 0:
             self.H -= self.cfg['cam']['crop_edge']*2
             self.W -= self.cfg['cam']['crop_edge']*2
             self.cx -= self.cfg['cam']['crop_edge']
             self.cy -= self.cfg['cam']['crop_edge']
-            
-            # raise()
+
     def load_bound(self, cfg):
         """
         Pass the scene bound parameters to different decoders and self.

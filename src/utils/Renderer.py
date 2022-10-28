@@ -110,7 +110,7 @@ class Renderer(object):
             # print(far_bb.shape)
             # print(gt_depth.shape)
             # far = torch.clamp(far_bb, 0,  gt_depth.max(dim=0)*1.2)
-            far = torch.clamp(far_bb, 0,  100)
+            far = torch.clamp(far_bb, 0, 10)
         else:
             far = far_bb
         if N_surface > 0:
@@ -145,7 +145,8 @@ class Renderer(object):
                 z_vals_surface[gt_none_zero_mask,
                                :] = z_vals_surface_depth_none_zero
                 near_surface = 0.001
-                far_surface = torch.max(gt_depth)
+                # far_surface = torch.max(gt_depth)
+                far_surface = 100
                 z_vals_surface_depth_zero = near_surface * \
                     (1.-t_vals_surface) + far_surface * (t_vals_surface)
                 z_vals_surface_depth_zero.unsqueeze(
