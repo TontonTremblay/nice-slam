@@ -10,19 +10,18 @@ for name in glob.glob('Datasets/Demo/frames/color_/*.jpg'):
 	black = np.zeros(im.shape)
 	s_x = random.randint(40,150)
 	s_y = random.randint(40,150)
-	# s_x = 0 
-	# s_y = 0 
+	# s_x = 0
+	# s_y = 0
 	# black = cv2.resize(black,(640, 480))
 	black[s_x:-(s_x+1),s_y:-(s_y+1),:] = im[s_x:-(s_x+1),s_y:-(s_y+1),:]
 	cv2.imwrite(name.replace("_",''),black)
-	
+
 	# update the depth
 	print(name.replace("color_","depth_"))
 	dname = name.replace("color_","depth_").replace("jpg",'png')
-	depth_data = cv2.imread(dname
-		, cv2.IMREAD_UNCHANGED)	
-	
-	# depth_data[s_x:-(s_x+1),s_y:-(s_y+1)] = 0 
+	depth_data = cv2.imread(dname, cv2.IMREAD_UNCHANGED)
+
+	# depth_data[s_x:-(s_x+1),s_y:-(s_y+1)] = 0
 	# black = np.zeros(depth_data.shape)
 	black = np.ones(depth_data.shape)*np.iinfo(depth_data.dtype).max
 	black = np.ones(depth_data.shape)*-1

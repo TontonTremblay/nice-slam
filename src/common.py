@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-
+from transformations import *
 
 def as_intrinsics_matrix(intrinsics):
     """
@@ -114,29 +114,11 @@ def select_uv(i, j, n, depth, color, device='cuda:0'):
     j = j.reshape(-1)
     indices = torch.randint(i.shape[0], (n,), device=device)
     indices = indices.clamp(0, i.shape[0])
+
     i = i[indices]  # (n)
     j = j[indices]  # (n)
-    # print('i',i.min(),i.max())
-    # print('j',j.min(),i.max())
-    # print(depth.shape)
     i = i.clamp(0,depth.shape[1]-1)
     j = j.clamp(0,depth.shape[0]-1)
-    # print('i',i.min(),i.max())
-    # print('j',j.min(),i.max())
-    # d = []
-    # rgb = []
-    # for ii, i_i in enumerate(i.long()): 
-    #     d.append(depth[j[ii].long(),i_i].cpu())
-    #     rgb.append(color[j[ii].long(),i_i].cpu().numpy().tolist())
-
-    # depth = torch.tensor(d,device=device)
-    # # print(d[:10])
-    # color = torch.tensor(rgb,device=device)
-    # print(depth.shape)
-    # print('i',i.min(),i.max())
-    # print('j',j.min(),i.max())
-    
-    # raise()
 
     depth = depth[j.long(),i.long()]
     color = color[j.long(),i.long()]
@@ -169,7 +151,7 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
     # H1 = 440
     # W0 = 20
     # W1 = 600
-    
+
     depth = depth[H0:H1, W0:W1]
     color = color[H0:H1, W0:W1]
     # raise()
@@ -180,7 +162,7 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
     # print(i.reshape(-1)[:10])
     # print(j.reshape(-1)[:10])
     # print("___")
-    
+
 
     # keep the i and j inside the mask
     # i,j = np.where(depth > -1)
@@ -189,9 +171,9 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
 
 
     # print(depth.min(),depth.max(),depth.shape,j.shape)
-    
-    j = j[depth>=0]
-    i = i[depth>=0]
+
+    j = j[depth>0]
+    i = i[depth>0]
 
     # print(i.reshape(-1)[:10])
     # print(j.reshape(-1)[:10])
@@ -202,15 +184,15 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
 
     # print(i[:10])
     # print(j[:10])
-    
+
     # raise()
-    # # contruct the image 
+    # # contruct the image
     # import cv2
     # print(torch.min(color),torch.max(color))
     # # print()
     # im = color.cpu().numpy()*255
     # print(im.shape)
-    
+
     # # print('i',i.min(),i.max())
     # # print('j',j.min(),j.max())
     # img = np.ones(im.shape)*255
@@ -225,12 +207,13 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
     # print(torch.min(depth),torch.max(depth))
     # print(i.shape)
     # raise()
-    # if len(i.reshape(-1)) == 0: 
+    # if len(i.reshape(-1)) == 0:
     #     print(len(i))
     #     raise()
 
-    i, j, depth, color = select_uv(i, j, n, depth, color, device=device)
-    # if 
+    i, j, depth_sel, color_sel = select_uv(i, j, n, depth, color, device=device)
+
+    # if
     # print(i.shape,j.shape,depth.shape,color.shape)
     # print(i.dtype,j.dtype,depth.dtype,color.dtype)
     # print("depth",depth.min(),depth.max(),depth.mean())
@@ -242,7 +225,7 @@ def get_sample_uv(H0, H1, W0, W1, n, depth, color, device='cuda:0'):
 
 
     # raise()
-    return i, j, depth, color
+    return i, j, depth_sel, color_sel
 
 
 def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2w, depth, color, device):
@@ -311,10 +294,11 @@ def get_tensor_from_camera(RT, Tquad=False):
             RT = RT.detach().cpu()
             gpu_id = RT.get_device()
         RT = RT.numpy()
-    from mathutils import Matrix
+    # from mathutils import Matrix
     R, T = RT[:3, :3], RT[:3, 3]
-    rot = Matrix(R)
-    quad = rot.to_quaternion()
+    quad = quaternion_from_matrix(RT)
+    # rot = Matrix(R)
+    # quad = rot.to_quaternion()
     if Tquad:
         tensor = np.concatenate([T, quad], 0)
     else:

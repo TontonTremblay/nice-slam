@@ -75,7 +75,7 @@ def readEXR_onlydepth(filename):
 
     # Y = None if 'Y' not in header['channels'] else channelData['Y']
 
-    # b = 
+    # b =
     # cv2.imread(output_name, cv2.IMREAD_UNCHANGED)
 
 
@@ -90,6 +90,7 @@ class BaseDataset(Dataset):
     def __init__(self, cfg, args, scale, device='cuda:0'
                  ):
         super(BaseDataset, self).__init__()
+        self.cfg = cfg
         self.name = cfg['dataset']
         self.device = device
         self.scale = scale
@@ -119,10 +120,12 @@ class BaseDataset(Dataset):
         depth_path = self.depth_paths[index]
 
         color_data = cv2.imread(color_path)
+        color_data = cv2.resize(color_data, dsize=None, fx=self.cfg['downscale_ratio'], fy=self.cfg['downscale_ratio'])
         if '.png' in depth_path:
             depth_data = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
         elif '.exr' in depth_path:
             depth_data = readEXR_onlydepth(depth_path)
+        depth_data = cv2.resize(depth_data, dsize=None, fx=self.cfg['downscale_ratio'], fy=self.cfg['downscale_ratio'], interpolation=cv2.INTER_NEAREST)
         if self.distortion is not None:
             K = as_intrinsics_matrix([self.fx, self.fy, self.cx, self.cy])
             # undistortion is only applied on color image, not depth!
@@ -249,7 +252,7 @@ class ScanNet(BaseDataset):
             for line in lines:
                 l = line.replace("  "," ").replace("\n","").split(' ')
                 a = []
-                for ll in l: 
+                for ll in l:
                     if not len(ll) == 0:
                         a.append(ll)
                 # print(a)

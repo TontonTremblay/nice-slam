@@ -1,11 +1,13 @@
 import numpy as np
 import open3d as o3d
-import skimage
+import skimage,functools
 import torch
 import torch.nn.functional as F
 import trimesh
 from packaging import version
 from src.utils.datasets import get_dataset
+
+print = functools.partial(print, flush=True)
 
 
 class Mesher(object):
@@ -18,9 +20,9 @@ class Mesher(object):
             cfg (dict): parsed config dict.
             args (class 'argparse.Namespace'): argparse arguments.
             slam (class NICE-SLAM): NICE-SLAM main class.
-            points_batch_size (int): maximum points size for query in one batch. 
+            points_batch_size (int): maximum points size for query in one batch.
                                      Used to alleviate GPU memeory usage. Defaults to 500000.
-            ray_batch_size (int): maximum ray size for query in one batch. 
+            ray_batch_size (int): maximum ray size for query in one batch.
                                   Used to alleviate GPU memeory usage. Defaults to 100000.
         """
         self.points_batch_size = points_batch_size
@@ -29,7 +31,7 @@ class Mesher(object):
         self.coarse = cfg['coarse']
         self.scale = cfg['scale']
         self.occupancy = cfg['occupancy']
-        
+
         self.resolution = cfg['meshing']['resolution']
         self.level_set = cfg['meshing']['level_set']
         self.clean_mesh_bound_scale = cfg['meshing']['clean_mesh_bound_scale']
@@ -37,7 +39,7 @@ class Mesher(object):
         self.color_mesh_extraction_method = cfg['meshing']['color_mesh_extraction_method']
         self.get_largest_components = cfg['meshing']['get_largest_components']
         self.depth_test = cfg['meshing']['depth_test']
-        
+
         self.bound = slam.bound
         self.nice = slam.nice
         self.verbose = slam.verbose
@@ -371,22 +373,24 @@ class Mesher(object):
             device (str, optional): device name to compute on. Defaults to 'cuda:0'.
             show_forecast (bool, optional): show forecast. Defaults to False.
             color (bool, optional): whether to extract colored mesh. Defaults to True.
-            clean_mesh (bool, optional): whether to clean the output mesh 
-                                        (remove outliers outside the convexhull and small geometry noise). 
+            clean_mesh (bool, optional): whether to clean the output mesh
+                                        (remove outliers outside the convexhull and small geometry noise).
                                         Defaults to True.
-            get_mask_use_all_frames (bool, optional): 
+            get_mask_use_all_frames (bool, optional):
                 whether to use all frames or just keyframes when getting the seen/unseen mask. Defaults to False.
         """
+        print(f"get_mesh...., show_forecast: {show_forecast}")
         with torch.no_grad():
 
             grid = self.get_grid_uniform(self.resolution)
             points = grid['grid_points']
             points = points.to(device)
+            print(f'points: {points.shape}')
 
             if show_forecast:
 
                 seen_mask, forecast_mask, unseen_mask = self.point_masks(
-                    points, keyframe_dict, estimate_c2w_list, idx, device=device, 
+                    points, keyframe_dict, estimate_c2w_list, idx, device=device,
                     get_mask_use_all_frames=get_mask_use_all_frames)
 
                 forecast_points = points[forecast_mask]
@@ -418,21 +422,27 @@ class Mesher(object):
                 z[unseen_mask] = -100
 
             else:
-                mesh_bound = self.get_bound_from_frames(
-                    keyframe_dict, self.scale)
+                # mesh_bound = self.get_bound_from_frames(
+                #     keyframe_dict, self.scale)
+                # print(f"mesh_bound: {mesh_bound}")
                 z = []
-                mask = []
-                for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
-                    mask.append(mesh_bound.contains(pnts.cpu().numpy()))
-                mask = np.concatenate(mask, axis=0)
+                # mask = []
+                # for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
+                #     mask.append(mesh_bound.contains(pnts.cpu().numpy()))
+                #     print(f"i: {i}, mask: {len(mask)}")
+                # mask = np.concatenate(mask, axis=0)
+                mask = np.ones(len(points), dtype=bool)
                 for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                     z.append(self.eval_points(pnts, decoders, c, 'fine',
                                               device).cpu().numpy()[:, -1])
+                    print(f"Mesher i: {i}, z: {len(z)}")
 
                 z = np.concatenate(z, axis=0)
                 z[~mask] = 100
 
             z = z.astype(np.float32)
+
+            print("marching cube....")
 
             try:
                 if version.parse(
@@ -467,6 +477,7 @@ class Mesher(object):
                 [grid['xyz'][0][0], grid['xyz'][1][0], grid['xyz'][2][0]])
 
             if clean_mesh:
+                print("clean mesh....")
                 if show_forecast:
                     points = vertices
                     mesh = trimesh.Trimesh(vertices=vertices,
@@ -489,7 +500,7 @@ class Mesher(object):
                                            faces=faces,
                                            process=False)
                     seen_mask, forecast_mask, unseen_mask = self.point_masks(
-                        points, keyframe_dict, estimate_c2w_list, idx, device=device, 
+                        points, keyframe_dict, estimate_c2w_list, idx, device=device,
                         get_mask_use_all_frames=get_mask_use_all_frames)
                     unseen_mask = ~seen_mask
                     face_mask = unseen_mask[mesh.faces].all(axis=1)
@@ -511,10 +522,11 @@ class Mesher(object):
                 try:
                     vertices = mesh.vertices
                     faces = mesh.faces
-                except: 
+                except:
                     print('no mesh found')
                     return
             if color:
+                print("add color....")
                 if self.color_mesh_extraction_method == 'direct_point_query':
                     # color is extracted by passing the coordinates of mesh vertices through the network
                     points = torch.from_numpy(vertices)
@@ -551,7 +563,7 @@ class Mesher(object):
                         rays_o_batch = rays_o[i:i+batch_size]
                         gt_depth_batch = gt_depth[i:i+batch_size]
                         depth, uncertainty, color = self.renderer.render_batch_ray(
-                            c, decoders, rays_d_batch, rays_o_batch, device, 
+                            c, decoders, rays_d_batch, rays_o_batch, device,
                             stage='color', gt_depth=gt_depth_batch)
                         color_list.append(color)
                     color = torch.cat(color_list, dim=0)
@@ -577,4 +589,3 @@ class Mesher(object):
             mesh.export(mesh_out_file)
             if self.verbose:
                 print('Saved mesh at', mesh_out_file)
-                

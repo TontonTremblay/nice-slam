@@ -1,24 +1,24 @@
 dataset: 'scannet'
-sync_method: loose
+sync_method: strict
 coarse: True
 verbose: True
 meshing:
   resolution: 256
 tracking:
-  vis_freq: 50
-  vis_inside_freq: 25
+  vis_freq: 10
+  vis_inside_freq: 10
   ignore_edge_W: 0
   ignore_edge_H: 0
   seperate_LR: True
   const_speed_assumption: True
-  lr: 0.0005      
+  lr: 0.0005
   pixels: 1000
   iters: 30
 mapping:
   every_frame: 10
-  vis_freq: 50
-  vis_inside_freq: 30
-  mesh_freq: 50
+  vis_freq: 10
+  vis_inside_freq: 10
+  mesh_freq: 100
   ckpt_freq: 1
   keyframe_every: 50
   mapping_window_size: 5
@@ -29,8 +29,8 @@ mapping:
   # marching_cubes_bound: [[0.0,6.5],[0.0,4.0],[0,3.5]]
   bound: [[-1,1],[-1,1],[-1,1]]
   marching_cubes_bound: [[-1,1],[-1,1],[-1,1]]
-cam: 
-  H: 480 
+cam:
+  H: 480
   W: 640
   fx: 614.627
   fy: 614.101
@@ -41,4 +41,4 @@ cam:
 data:
   input_folder: Datasets/ho3d/SM1/
   output: output/sm1
-
+downscale_ratio: 1

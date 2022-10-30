@@ -1,4 +1,4 @@
-import torch
+import torch,pdb
 from src.common import get_rays, raw2outputs_nerf_color, sample_pdf
 
 
@@ -87,7 +87,8 @@ class Renderer(object):
 
         if stage == 'coarse':
             gt_depth = None
-        if gt_depth is None:
+        if gt_depth is None or len(gt_depth)==0:
+            gt_depth = None
             N_surface = 0
             near = 0.01
         else:
@@ -104,13 +105,14 @@ class Renderer(object):
             far_bb = far_bb.unsqueeze(-1)
             far_bb += 0.01
 
-        if gt_depth is not None:
+        if gt_depth is not None and len(gt_depth)>0:
             # in case the bound is too large
-            # far = torch.clamp(far_bb, 0,  torch.max(gt_depth*1.2))
+            print("gt_depth",gt_depth.shape)
+            far = torch.clamp(far_bb, 0,  torch.max(gt_depth*1.2))
             # print(far_bb.shape)
             # print(gt_depth.shape)
             # far = torch.clamp(far_bb, 0,  gt_depth.max(dim=0)*1.2)
-            far = torch.clamp(far_bb, 0, 10)
+            # far = torch.clamp(far_bb, 0, 10)
         else:
             far = far_bb
         if N_surface > 0:
@@ -145,8 +147,8 @@ class Renderer(object):
                 z_vals_surface[gt_none_zero_mask,
                                :] = z_vals_surface_depth_none_zero
                 near_surface = 0.001
-                # far_surface = torch.max(gt_depth)
-                far_surface = 100
+                far_surface = torch.max(gt_depth)
+                # far_surface = 100
                 z_vals_surface_depth_zero = near_surface * \
                     (1.-t_vals_surface) + far_surface * (t_vals_surface)
                 z_vals_surface_depth_zero.unsqueeze(

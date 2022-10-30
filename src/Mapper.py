@@ -1,6 +1,6 @@
 import os
 import time
-
+import functools
 import cv2
 import numpy as np
 import torch
@@ -12,6 +12,7 @@ from src.common import (get_camera_from_tensor, get_samples,
 from src.utils.datasets import get_dataset
 from src.utils.Visualizer import Visualizer
 
+print = functools.partial(print, flush=True)
 
 class Mapper(object):
     """
@@ -174,7 +175,7 @@ class Mapper(object):
             keyframe_dict (list): a list containing info for each keyframe.
             k (int): number of overlapping keyframes to select.
             N_samples (int, optional): number of samples/points per ray. Defaults to 16.
-            pixels (int, optional): number of pixels to sparsely sample 
+            pixels (int, optional): number of pixels to sparsely sample
                 from the image of the current camera. Defaults to 100.
         Returns:
             selected_keyframe_list (list): list of selected keyframe id.
@@ -241,11 +242,12 @@ class Mapper(object):
             gt_cur_c2w (tensor): groundtruth camera to world matrix corresponding to current frame.
             keyframe_dict (list): list of keyframes info dictionary.
             keyframe_list (list): list ofkeyframe index.
-            cur_c2w (tensor): the estimated camera to world matrix of current frame. 
+            cur_c2w (tensor): the estimated camera to world matrix of current frame.
 
         Returns:
             cur_c2w/None (tensor/None): return the updated cur_c2w, return None if no BA
         """
+        print("optimize_map....")
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         c = self.c
         cfg = self.cfg
@@ -389,6 +391,7 @@ class Mapper(object):
             scheduler = StepLR(optimizer, step_size=200, gamma=0.8)
 
         for joint_iter in range(num_joint_iters):
+            print(f"Mapper coarse: {self.coarse_mapper}, joint_iter: {joint_iter}/{num_joint_iters}")
             if self.nice:
                 if self.frustum_feature_selection:
                     for key, val in c.items():
@@ -479,6 +482,9 @@ class Mapper(object):
                 batch_rays_o = batch_rays_o[inside_mask]
                 batch_gt_depth = batch_gt_depth[inside_mask]
                 batch_gt_color = batch_gt_color[inside_mask]
+                if len(batch_gt_depth)==0:
+                    return None
+
             ret = self.renderer.render_batch_ray(c, self.decoders, batch_rays_d,
                                                  batch_rays_o, device, self.stage,
                                                  gt_depth=None if self.coarse_mapper else batch_gt_depth)
@@ -550,9 +556,11 @@ class Mapper(object):
         while (1):
             while True:
                 idx = self.idx[0].clone()
+                print(f"Mapping (coarse: {self.coarse_mapper}) waiting, idx: {idx}, prev_idx: {prev_idx}")
                 if idx == self.n_img-1:
                     break
                 if self.sync_method == 'strict':
+                    print(f"Mapping (coarse: {self.coarse_mapper}) idx: {idx}, prev_idx: {prev_idx}, every_frame: {self.every_frame}")
                     if idx % self.every_frame == 0 and idx != prev_idx:
                         break
 
@@ -562,6 +570,7 @@ class Mapper(object):
                 elif self.sync_method == 'free':
                     break
                 time.sleep(0.1)
+            print(f"Mapping (coarse: {self.coarse_mapper}) start")
             prev_idx = idx
 
             if self.verbose:
@@ -571,6 +580,7 @@ class Mapper(object):
                 print(Style.RESET_ALL)
 
             _, gt_color, gt_depth, gt_c2w = self.frame_reader[idx]
+            print(f"Mapping (coarse: {self.coarse_mapper}) get gts")
 
             if not init:
                 lr_factor = cfg['mapping']['lr_factor']
@@ -599,13 +609,14 @@ class Mapper(object):
             cur_c2w = self.estimate_c2w_list[idx].to(self.device)
             num_joint_iters = num_joint_iters//outer_joint_iters
             for outer_joint_iter in range(outer_joint_iters):
+                print(f"Mapping (coarse: {self.coarse_mapper}) idx: {idx}, outer_joint_iter: {outer_joint_iter}/{outer_joint_iters}")
 
                 self.BA = (len(self.keyframe_list) > 4) and cfg['mapping']['BA'] and (
                     not self.coarse_mapper)
 
                 _ = self.optimize_map(num_joint_iters, lr_factor, idx, gt_color, gt_depth,
                                       gt_c2w, self.keyframe_dict, self.keyframe_list, cur_c2w=cur_c2w)
-                if self.BA:
+                if self.BA and _ is not None:
                     cur_c2w = _
                     self.estimate_c2w_list[idx] = cur_c2w
 
@@ -630,30 +641,36 @@ class Mapper(object):
                     self.logger.log(idx, self.keyframe_dict, self.keyframe_list,
                                     selected_keyframes=self.selected_keyframes
                                     if self.save_selected_keyframes_info else None)
-                    # store the camera poses 
-                    
+                    # store the camera poses
+
+                print(f"Mapping (coarse: {self.coarse_mapper}) mapping_idx set to {idx}")
                 self.mapping_idx[0] = idx
                 self.mapping_cnt[0] += 1
 
                 if (idx % self.mesh_freq == 0) and (not (idx == 0 and self.no_mesh_on_first_frame)):
                     mesh_out_file = f'{self.output}/mesh/{idx:05d}_mesh.ply'
+                    print(f"Mapping (coarse: {self.coarse_mapper}) Get mesh {mesh_out_file}")
                     self.mesher.get_mesh(mesh_out_file, self.c, self.decoders, self.keyframe_dict, self.estimate_c2w_list,
-                                         idx,  self.device, show_forecast=self.mesh_coarse_level,
-                                         clean_mesh=self.clean_mesh, get_mask_use_all_frames=False)
+                                            idx,  self.device, show_forecast=self.mesh_coarse_level,
+                                            clean_mesh=self.clean_mesh, get_mask_use_all_frames=False)
 
                 if idx == self.n_img-1:
                     mesh_out_file = f'{self.output}/mesh/final_mesh.ply'
                     self.mesher.get_mesh(mesh_out_file, self.c, self.decoders, self.keyframe_dict, self.estimate_c2w_list,
-                                         idx,  self.device, show_forecast=self.mesh_coarse_level,
-                                         clean_mesh=self.clean_mesh, get_mask_use_all_frames=False)
+                                            idx,  self.device, show_forecast=self.mesh_coarse_level,
+                                            clean_mesh=self.clean_mesh, get_mask_use_all_frames=False)
                     os.system(
                         f"cp {mesh_out_file} {self.output}/mesh/{idx:05d}_mesh.ply")
                     if self.eval_rec:
                         mesh_out_file = f'{self.output}/mesh/final_mesh_eval_rec.ply'
                         self.mesher.get_mesh(mesh_out_file, self.c, self.decoders, self.keyframe_dict,
-                                             self.estimate_c2w_list, idx, self.device, show_forecast=False,
-                                             clean_mesh=self.clean_mesh, get_mask_use_all_frames=True)
+                                                self.estimate_c2w_list, idx, self.device, show_forecast=False,
+                                                clean_mesh=self.clean_mesh, get_mask_use_all_frames=True)
                     break
+
+            # else:
+            #     self.mapping_idx[0] = idx
+            #     self.mapping_cnt[0] += 1
 
             if idx == self.n_img-1:
                 break
